@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// LogEveryday 让你的logger文件每天24点准时替换,log文件保存的folderPath里
+//以2021-11-22.log的格式命名
 func LogEveryday(logger *log.Logger, t time.Time, folderPath string) error {
 	os.MkdirAll(folderPath, os.ModePerm)
 	logFile, err := os.OpenFile(folderPath+t.String()[:10]+".log",
