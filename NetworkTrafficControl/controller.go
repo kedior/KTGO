@@ -1,27 +1,25 @@
 package NetworkTrafficControl
 
 import (
-	"sync"
 	"time"
 )
 
 type bucket struct {
-	tokens   int64
-	once     int64
-	capacity int64
-	interval time.Duration
-	mu       sync.Mutex
-	start    bool
+	once      int64
+	container chan struct{}
+	interval  time.Duration
+	waitTime  time.Duration
+	start     bool
 }
 
 // NewController 实现一个令牌桶,capacity为容积,每隔interval向桶中投入once个令牌
-func NewController(once, capacity int64, interval time.Duration) *bucket {
+func NewController(once, contain int64, interval, waitTime time.Duration) *bucket {
 	return &bucket{
-		tokens:   0,
-		once:     once,
-		capacity: capacity,
-		interval: interval,
-		start:    false,
+		once:      once,
+		container: make(chan struct{}, contain),
+		interval:  interval,
+		waitTime:  waitTime,
+		start:     false,
 	}
 }
 
@@ -32,25 +30,27 @@ func (b *bucket) Start() {
 	}
 	b.start = true
 	go func() {
-		for {
-			time.Sleep(b.interval)
-			b.mu.Lock()
-			b.tokens += b.once
-			if b.tokens > b.capacity {
-				b.tokens = b.capacity
+	loop:
+		time.Sleep(b.interval)
+	send:
+		for i := 0; i < int(b.once); i++ {
+			select {
+			case b.container <- struct{}{}:
+			default:
+				break send
 			}
-			b.mu.Unlock()
 		}
+		goto loop
 	}()
 }
 
-// Test 取出桶中一个令牌,如果桶中剩余令牌，则返回true，否则返回false
+// Test 取出桶中一个令牌,如果桶中剩余令牌，则返回true\
+//否则会先等待waitTime,若仍然无令牌,返回false
 func (b *bucket) Test() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.tokens > 0 {
-		b.tokens--
+	select {
+	case <-b.container:
 		return true
+	case <-time.Tick(b.waitTime):
+		return false
 	}
-	return false
 }
