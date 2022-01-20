@@ -21,6 +21,7 @@ func NewController(once, max int64, interval time.Duration) *bucket {
 		max:      max,
 		c:        max,
 		interval: interval,
+		last:     time.Duration(time.Now().UnixNano()),
 	}
 }
 
@@ -29,7 +30,7 @@ func (b *bucket) update() {
 	if now-b.last < b.interval {
 		return
 	}
-	if b.c += int64((b.last-now)/b.interval) * b.once; b.c > b.max {
+	if b.c += int64((now-b.last)/b.interval) * b.once; b.c > b.max {
 		b.c = b.max
 	}
 	b.last = now
@@ -46,4 +47,34 @@ func (b *bucket) Test() bool {
 		return true
 	}
 	return false
+}
+
+// NewControlFunc 是令牌桶的闭包实现
+//调用返回的函数取出桶中一个令牌,如果桶中剩余令牌，则返回true
+//若无令牌,返回false
+func NewControlFunc(once, max int64, interval time.Duration) func() bool {
+	var (
+		c    = max
+		last = time.Duration(time.Now().UnixNano())
+		mu   sync.Mutex
+	)
+	return func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		now := time.Duration(time.Now().UnixNano())
+		if now-last < interval {
+			goto end
+		}
+		if c += int64((now-last)/interval) * once; c > max {
+			c = max
+		}
+		last = now
+	end:
+		if c > 0 {
+			c--
+			return true
+		}
+		return false
+
+	}
 }
