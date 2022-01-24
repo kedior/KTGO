@@ -87,10 +87,22 @@ func NewIpLimit(limitTime, banTime time.Duration,
 }
 
 // IsBanning 返回ip在时间戳为time的时刻是否被封禁
-func (l *ipLimiter) IsBanning(ip IP, time int64) bool {
-	return (l.m[ip] != nil && l.m[ip].limitTo > time) ||
-		(l.super != nil && l.super.IsBanning(ip, time))
+//func (l *ipLimiter) IsBanning(ip IP, time int64) bool {
+//	return (l.m[ip] != nil && l.m[ip].limitTo > time) ||
+//		(l.super != nil && l.super.IsBanning(ip, time))
+//
+//}
 
+func (l *ipLimiter) BanningTo(ip IP) time.Duration {
+	info := l.m[ip]
+	res := time.Duration(0)
+	if info != nil {
+		res = time.Duration(info.limitTo)
+		if l.super != nil && l.super.BanningTo(ip) > res {
+			res = l.super.BanningTo(ip)
+		}
+	}
+	return res
 }
 
 // Put 提醒limiter此ip进行了一次访问
@@ -105,7 +117,7 @@ func (l *ipLimiter) Put(ip IP) bool {
 		l.m[ip] = &limiter{lastAsk: now}
 		return true
 	}
-	if l.IsBanning(ip, now) {
+	if l.BanningTo(ip) > time.Duration(now) {
 		return false
 	}
 	il.lastAsk, now = now, il.lastAsk
