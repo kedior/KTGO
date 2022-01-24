@@ -98,8 +98,11 @@ func (l *ipLimiter) BanningTo(ip IP) time.Duration {
 	res := time.Duration(0)
 	if info != nil {
 		res = time.Duration(info.limitTo)
-		if l.super != nil && l.super.BanningTo(ip) > res {
-			res = l.super.BanningTo(ip)
+		if l.super != nil {
+			superTime := l.super.BanningTo(ip)
+			if superTime > res {
+				res = superTime
+			}
 		}
 	}
 	return res
