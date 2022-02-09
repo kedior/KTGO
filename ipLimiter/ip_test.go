@@ -44,6 +44,5 @@ func TestIpLimiter_Put(t *testing.T) {
 }
 
 func TestNewIP(t *testing.T) {
-	_, ip := NewIP("192.98.45.249")
-	fmt.Println(ip)
+
 }
