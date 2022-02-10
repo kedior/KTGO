@@ -5,12 +5,13 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type operator struct {
 	input interface{}
-	doing chan struct{}
+	doing int32
 	out   chan []reflect.Value
 }
 
@@ -54,21 +55,20 @@ func todo(fromFunc *reflect.Value) func([]reflect.Value) []reflect.Value {
 	var lock sync.Mutex
 
 	return func(in []reflect.Value) []reflect.Value {
+	start:
 		lock.Lock()
 		inputKey := inToStructFn(in)
 		op := m[inputKey]
 		if op == nil {
 			op = &operator{
 				input: inputKey,
-				doing: make(chan struct{}, 1),
+				doing: 0,
 				out:   make(chan []reflect.Value),
 			}
-			op.doing <- struct{}{}
 			m[inputKey] = op
 		}
 		lock.Unlock()
-		select {
-		case <-op.doing:
+		if atomic.CompareAndSwapInt32(&op.doing, 0, 1) {
 			go func() {
 				result := fromFunc.Call(in)
 				after := time.After(time.Second * 5)
@@ -76,19 +76,18 @@ func todo(fromFunc *reflect.Value) func([]reflect.Value) []reflect.Value {
 					select {
 					case op.out <- result:
 					case <-after:
-						goto end
+						lock.Lock()
+						delete(m, op.input)
+						close(op.out)
+						lock.Unlock()
+						return
 					}
 				}
-			end:
-				lock.Lock()
-				delete(m, op.input)
-				lock.Unlock()
-				close(op.doing)
-				close(op.out)
 			}()
-		default:
 		}
-		v := <-op.out
-		return v
+		if v, ok := <-op.out; ok {
+			return v
+		}
+		goto start
 	}
 }
