@@ -15,6 +15,12 @@ type operator struct {
 	out   chan []reflect.Value
 }
 
+var OpPool = sync.Pool{
+	New: func() interface{} {
+		return &operator{}
+	},
+}
+
 func MakeMultiplex(fromFnPtr, toFnPtr interface{}) error {
 	from := reflect.ValueOf(fromFnPtr).Elem()
 	to := reflect.ValueOf(toFnPtr).Elem()
@@ -60,11 +66,10 @@ func todo(fromFunc *reflect.Value) func([]reflect.Value) []reflect.Value {
 		inputKey := inToStructFn(in)
 		op := m[inputKey]
 		if op == nil {
-			op = &operator{
-				input: inputKey,
-				doing: 0,
-				out:   make(chan []reflect.Value),
-			}
+			op = OpPool.Get().(*operator)
+			op.input = inputKey
+			op.doing = 0
+			op.out = make(chan []reflect.Value)
 			m[inputKey] = op
 		}
 		lock.Unlock()
@@ -79,6 +84,7 @@ func todo(fromFunc *reflect.Value) func([]reflect.Value) []reflect.Value {
 						lock.Lock()
 						delete(m, op.input)
 						close(op.out)
+						OpPool.Put(op)
 						lock.Unlock()
 						return
 					}
