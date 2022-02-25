@@ -15,6 +15,12 @@ type operator struct {
 	out   chan []reflect.Value
 }
 
+func (op *operator) reset(input interface{}) {
+	op.input = input
+	op.doing = 0
+	op.out = make(chan []reflect.Value)
+}
+
 var OpPool = sync.Pool{
 	New: func() interface{} {
 		return &operator{}
@@ -67,9 +73,7 @@ func todo(fromFunc *reflect.Value) func([]reflect.Value) []reflect.Value {
 		op := m[inputKey]
 		if op == nil {
 			op = OpPool.Get().(*operator)
-			op.input = inputKey
-			op.doing = 0
-			op.out = make(chan []reflect.Value)
+			op.reset(inputKey)
 			m[inputKey] = op
 		}
 		lock.Unlock()
