@@ -2,15 +2,15 @@ package functionMultiplexing
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type operator struct {
-	input interface{}
+	input string
 	doing int32
 	out   chan []reflect.Value
 }
@@ -35,35 +35,14 @@ func MakeMultiplex(fromFnPtr, toFnPtr interface{}) error {
 	return nil
 }
 
-func makeInStruct(tp reflect.Type) func([]reflect.Value) interface{} {
-	numIn := tp.NumIn()
-	inFields := make([]reflect.StructField, numIn)
-	for i := 0; i < numIn; i++ {
-		inFields[i] = reflect.StructField{
-			Name: "I" + strconv.Itoa(i),
-			Type: tp.In(i),
-		}
-	}
-	structType := reflect.StructOf(inFields)
-	return func(args []reflect.Value) interface{} {
-		elem := reflect.New(structType).Elem()
-		num := elem.NumField()
-		for i := 0; i < num; i++ {
-			elem.Field(i).Set(args[i])
-		}
-		return elem.Interface()
-	}
-}
-
 func todo(fromFunc *reflect.Value) func([]reflect.Value) []reflect.Value {
-	inToStructFn := makeInStruct(fromFunc.Type())
-	m := make(map[interface{}]*operator)
+	m := make(map[string]*operator)
 	var lock sync.Mutex
 
 	return func(in []reflect.Value) []reflect.Value {
 	start:
 		lock.Lock()
-		inputKey := inToStructFn(in)
+		inputKey := fmt.Sprint(in)
 		op := m[inputKey]
 		if op == nil {
 			op = OpPool.Get().(*operator)
