@@ -1,26 +1,36 @@
 package functionMultiplexing
 
 import (
-	"fmt"
+	"sync"
 	"testing"
-	"time"
 )
 
 func TestMakeMultiplex(t *testing.T) {
-	complex := func() {
-		time.Sleep(time.Second * 2)
-		fmt.Println("jksghhjkas")
+	var (
+		callCount = 1000
+		called    = 0
+	)
+
+	from := func(id int) int {
+		called++
+		return 1
 	}
-	var superFun func()
-	err := MakeMultiplex(&complex, &superFun)
+	var wrapper func(int) int
+	err := MakeMultiplex(&from, &wrapper)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	go superFun()
-	go superFun()
-	go superFun()
-	go superFun()
-	go superFun()
-	go superFun()
-	time.Sleep(time.Second * 7)
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < callCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			wrapper(1)
+		}()
+	}
+	wg.Wait()
+	if called >= callCount {
+		t.Fatal("multiplex error")
+	}
 }
