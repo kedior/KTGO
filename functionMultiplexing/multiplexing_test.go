@@ -2,17 +2,18 @@ package functionMultiplexing
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
 func TestMakeMultiplex(t *testing.T) {
 	var (
-		callCount = 1000
-		called    = 0
+		callCount = int64(1000)
+		called    = int64(0)
 	)
 
 	from := func(id int) int {
-		called++
+		atomic.AddInt64(&called, 1)
 		return 1
 	}
 	var wrapper func(int) int
@@ -22,7 +23,7 @@ func TestMakeMultiplex(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	for i := 0; i < callCount; i++ {
+	for i := int64(0); i < callCount; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
